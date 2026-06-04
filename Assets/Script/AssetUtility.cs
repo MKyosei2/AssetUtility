@@ -53,6 +53,7 @@ namespace EasyTool
         public string objectType;
         public int memoryMB;
         public string materialType;
+        public string materialName;
         public int polygonCount;
         public int targetPolygonCount;
         public string meshPath;        // Mesh参照を名前ではなくAssetPathで特定
@@ -76,6 +77,7 @@ namespace EasyTool
                 objectType = objectType,
                 memoryMB = memoryMB,
                 materialType = materialType,
+                materialName = materialName,
                 polygonCount = polygonCount,
                 targetPolygonCount = targetPolygonCount,
                 meshPath = meshPath,
@@ -120,7 +122,8 @@ namespace EasyTool
         public double processTimeMS;
     }
 
-    // AssetUtilityData は ScriptableObject として安定させるため AssetUtilityData.cs に分離しました。
+
+    // AssetUtilityData は AssetUtilityData.cs に分離しました。
 
 }
 #endregion
@@ -1450,8 +1453,8 @@ public class AssetUtilityWindow : EditorWindow
         GUILayout.Label("目標Poly", GUILayout.Width(90));
         GUILayout.Label("削減率", GUILayout.Width(70));
         GUILayout.Label("Texture", GUILayout.Width(160));
-        GUILayout.Label("現在解像度", GUILayout.Width(120));
-        GUILayout.Label("目標解像度", GUILayout.Width(180));
+        GUILayout.Label("現在Max", GUILayout.Width(120));
+        GUILayout.Label("目標Max", GUILayout.Width(180));
         GUILayout.Label("Material", GUILayout.Width(170));
         GUILayout.Label("警告", GUILayout.Width(240));
         GUILayout.EndHorizontal();
@@ -1467,7 +1470,7 @@ public class AssetUtilityWindow : EditorWindow
             DrawPolygonField(asset, 90);
             GUILayout.Label(ReductionText(asset), GUILayout.Width(70));
             GUILayout.Label(asset.textureName, GUILayout.Width(160));
-            GUILayout.Label(ResolutionText(GetOriginalResolution(asset)), GUILayout.Width(120));
+            GUILayout.Label(TextureMaxSizeText(asset), GUILayout.Width(120));
             DrawResolutionFields(asset, 180);
             GUILayout.Label(asset.materialType, GUILayout.Width(170));
             GUILayout.Label(BuildAssetWarning(asset), GUILayout.Width(240));
@@ -1482,8 +1485,8 @@ public class AssetUtilityWindow : EditorWindow
         GUILayout.Label("オブジェクト", GUILayout.Width(180));
         GUILayout.Label("テクスチャー名", GUILayout.Width(160));
         DrawTextureTypePopup(130);
-        GUILayout.Label("現在解像度", GUILayout.Width(120));
-        GUILayout.Label("目標解像度", GUILayout.Width(180));
+        GUILayout.Label("現在Max", GUILayout.Width(120));
+        GUILayout.Label("目標Max", GUILayout.Width(180));
         GUILayout.Label("現在VRAM", GUILayout.Width(90));
         GUILayout.Label("目標VRAM", GUILayout.Width(90));
         GUILayout.EndHorizontal();
@@ -1497,7 +1500,7 @@ public class AssetUtilityWindow : EditorWindow
             GUILayout.Label(asset.name, GUILayout.Width(180));
             GUILayout.Label(asset.textureName, GUILayout.Width(160));
             GUILayout.Label(asset.textureType, GUILayout.Width(130));
-            GUILayout.Label(ResolutionText(GetOriginalResolution(asset)), GUILayout.Width(120));
+            GUILayout.Label(TextureMaxSizeText(asset), GUILayout.Width(120));
             DrawResolutionFields(asset, 180);
             GUILayout.Label(GetOriginalVram(asset).ToString("F2") + " MB", GUILayout.Width(90));
             GUILayout.Label(EstimateVram(asset.resolution).ToString("F2") + " MB", GUILayout.Width(90));
@@ -1519,7 +1522,7 @@ public class AssetUtilityWindow : EditorWindow
             AssetInfo asset = filteredAssets[i];
             GUILayout.BeginHorizontal();
             GUILayout.Label(asset.name, GUILayout.Width(180));
-            GUILayout.Label(asset.materialType, GUILayout.Width(180));
+            GUILayout.Label(string.IsNullOrEmpty(asset.materialName) ? "None" : asset.materialName, GUILayout.Width(180));
             GUILayout.Label(asset.materialType, GUILayout.Width(180));
             GUILayout.Label(asset.scene, GUILayout.Width(160));
             GUILayout.EndHorizontal();
@@ -1566,12 +1569,8 @@ public class AssetUtilityWindow : EditorWindow
             next = Mathf.Clamp(next, 1, max);
             if (next != current)
             {
-                AssetUtilityData data = AssetUtilityData.LoadOrCreateData();
-                Undo.RecordObject(data, "Polygon編集");
                 asset.polygonCount = next;
                 asset.targetPolygonCount = next;
-                RegisterMeshEdit(data, asset, next);
-                data.SaveChangesToDisk();
                 isEditing = true;
             }
         }
@@ -1585,23 +1584,27 @@ public class AssetUtilityWindow : EditorWindow
             return;
         }
 
-        GUILayout.BeginHorizontal(GUILayout.Width(width));
-        int w = Mathf.Max(1, asset.resolution.x);
-        int h = Mathf.Max(1, asset.resolution.y);
-        int newW = EditorGUILayout.IntField(w, GUILayout.Width(80));
-        int newH = EditorGUILayout.IntField(h, GUILayout.Width(80));
-        GUILayout.EndHorizontal();
-
-        newW = ClampTextureDimension(newW);
-        newH = ClampTextureDimension(newH);
-
-        if (newW != w || newH != h)
+        int currentMax = GetTextureImporterMaxSize(asset.texturePath);
+        if (currentMax <= 0)
         {
-            AssetUtilityData data = AssetUtilityData.LoadOrCreateData();
-            Undo.RecordObject(data, "解像度編集");
-            asset.resolution = new Vector2Int(newW, newH);
-            RegisterTextureEdit(data, asset, new Vector2Int(newW, newH));
-            data.SaveChangesToDisk();
+            Vector2Int original = GetOriginalResolution(asset);
+            currentMax = ToImporterMaxSize(Mathf.Max(original.x, original.y));
+        }
+
+        int targetMax = asset.resolution.x > 0 || asset.resolution.y > 0
+            ? ToImporterMaxSize(Mathf.Max(asset.resolution.x, asset.resolution.y))
+            : currentMax;
+
+        int next = EditorGUILayout.IntPopup(
+            targetMax,
+            new[] { "32", "64", "128", "256", "512", "1024", "2048", "4096", "8192" },
+            new[] { 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192 },
+            GUILayout.Width(width));
+
+        if (next != targetMax)
+        {
+            asset.resolution = new Vector2Int(next, next);
+            asset.targetResolution = asset.resolution;
             isEditing = true;
         }
     }
@@ -1633,109 +1636,113 @@ public class AssetUtilityWindow : EditorWindow
     private void DrawFooter()
     {
         GUILayout.Space(8);
-        GUILayout.BeginHorizontal();
-
-        GUILayout.BeginVertical("box", GUILayout.Width(420));
-
-        foldShapeOptions = EditorGUILayout.Foldout(foldShapeOptions, "形状保護オプション（QEM）");
-        if (!foldShapeOptions)
+        using (new EditorGUILayout.HorizontalScope())
         {
-            useQEM = GUILayout.Toggle(useQEM, "高精度QEM（形状保護）");
-            GUILayout.Label("詳細設定を表示するには見出しをクリック", EditorStyles.miniLabel);
-        }
-        else
-        {
-            useQEM = GUILayout.Toggle(useQEM, "高精度QEM（形状保護）");
-            preserveBorders = GUILayout.Toggle(preserveBorders, "境界保持");
-            preserveUVSeams = GUILayout.Toggle(preserveUVSeams, "UVシーム保持");
-            preserveHardNormals = GUILayout.Toggle(preserveHardNormals, "ハード法線保持");
-            preventNonManifold = GUILayout.Toggle(preventNonManifold, "非多様体の防止");
-            snapToLocalSurface = GUILayout.Toggle(snapToLocalSurface, "新頂点を近傍面へ再投影（崩れ抑制）");
-
-            GUILayout.Label(string.Format("Max Normal Deviation: {0:F0}°", maxNormalDev));
-            maxNormalDev = Mathf.Clamp(EditorGUILayout.Slider(maxNormalDev, 5f, 180f), 5f, 180f);
-
-            GUILayout.Label(string.Format("Min Triangle Area: {0:E2}", minTriArea));
-            minTriArea = Mathf.Clamp(EditorGUILayout.FloatField(minTriArea), 1e-12f, 1e-4f);
-
-            GUILayout.Label(string.Format("UV Weight: {0:F2}", uvWeight));
-            uvWeight = Mathf.Clamp01(EditorGUILayout.Slider(uvWeight, 0f, 1f));
-            GUILayout.Label(string.Format("Normal Weight: {0:F2}", normalWeight));
-            normalWeight = Mathf.Clamp01(EditorGUILayout.Slider(normalWeight, 0f, 1f));
-
-            GUILayout.Label(string.Format("Edge Length Clamp (×): {0:F2}", edgeLenClamp));
-            edgeLenClamp = Mathf.Max(0f, EditorGUILayout.FloatField(edgeLenClamp));
-
-            GUILayout.Label(string.Format("Max Position Error (local units, 0=無制限): {0:F6}", maxPosErr));
-            maxPosErr = Mathf.Max(0f, EditorGUILayout.FloatField(maxPosErr));
-
-            GUILayout.Label("Subdivide Steps (before simplify): " + subdivideSteps);
-            subdivideSteps = Mathf.Clamp(EditorGUILayout.IntField(subdivideSteps, GUILayout.Width(60)), 0, 3);
-
-            GUILayout.Label("Max Iterations per Step: " + maxIters);
-            maxIters = Mathf.Clamp(EditorGUILayout.IntField(maxIters, GUILayout.Width(80)), 1000, 50000);
-
-            GUILayout.Space(6);
-            useGPUOptimization = GUILayout.Toggle(useGPUOptimization, "GPU簡略化を優先する（推奨）");
-        }
-
-        GUILayout.EndVertical();
-
-        GUILayout.Space(8);
-
-        GUILayout.BeginVertical();
-        GUI.enabled = isEditing;
-        if (GUILayout.Button("適応する", GUILayout.Width(180), GUILayout.Height(28)))
-        {
-            ScheduleApplyAssetChanges();
-        }
-        GUI.enabled = true;
-
-        if (GUILayout.Button("変更破棄", GUILayout.Width(180)))
-        {
-            AssetUtilityData data = AssetUtilityData.LoadOrCreateData();
-            data.ClearTemporaryData();
-            data.SaveChangesToDisk();
-            editableAssets = allAssets.Select(x => x.Clone()).ToList();
-            isEditing = false;
-            Debug.Log("変更を破棄");
-        }
-
-        if (GUILayout.Button("ポリゴン数 50% 削減", GUILayout.Width(180)))
-        {
-            AssetUtilityData data = AssetUtilityData.LoadOrCreateData();
-            Undo.RecordObject(data, "一括ポリゴン変更");
-
-            for (int i = 0; i < editableAssets.Count; i++)
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.Width(420)))
             {
-                AssetInfo asset = editableAssets[i];
-                if (!asset.canEditMesh || string.IsNullOrEmpty(asset.meshPath) || asset.polygonCount <= 1) continue;
-                int reduced = Mathf.Max(1, asset.polygonCount / 2);
-                if (asset.polygonCount != reduced)
+                foldShapeOptions = EditorGUILayout.Foldout(foldShapeOptions, "形状保護オプション（QEM）");
+                if (!foldShapeOptions)
                 {
-                    asset.polygonCount = reduced;
-                    asset.targetPolygonCount = reduced;
-                    RegisterMeshEdit(data, asset, reduced);
-                    isEditing = true;
+                    useQEM = GUILayout.Toggle(useQEM, "高精度QEM（形状保護）");
+                    GUILayout.Label("詳細設定を表示するには見出しをクリック", EditorStyles.miniLabel);
+                }
+                else
+                {
+                    useQEM = GUILayout.Toggle(useQEM, "高精度QEM（形状保護）");
+                    preserveBorders = GUILayout.Toggle(preserveBorders, "境界保持");
+                    preserveUVSeams = GUILayout.Toggle(preserveUVSeams, "UVシーム保持");
+                    preserveHardNormals = GUILayout.Toggle(preserveHardNormals, "ハード法線保持");
+                    preventNonManifold = GUILayout.Toggle(preventNonManifold, "非多様体の防止");
+                    snapToLocalSurface = GUILayout.Toggle(snapToLocalSurface, "新頂点を近傍面へ再投影（崩れ抑制）");
+
+                    GUILayout.Label(string.Format("Max Normal Deviation: {0:F0}°", maxNormalDev));
+                    maxNormalDev = Mathf.Clamp(EditorGUILayout.Slider(maxNormalDev, 5f, 180f), 5f, 180f);
+
+                    GUILayout.Label(string.Format("Min Triangle Area: {0:E2}", minTriArea));
+                    minTriArea = Mathf.Clamp(EditorGUILayout.FloatField(minTriArea), 1e-12f, 1e-4f);
+
+                    GUILayout.Label(string.Format("UV Weight: {0:F2}", uvWeight));
+                    uvWeight = Mathf.Clamp01(EditorGUILayout.Slider(uvWeight, 0f, 1f));
+                    GUILayout.Label(string.Format("Normal Weight: {0:F2}", normalWeight));
+                    normalWeight = Mathf.Clamp01(EditorGUILayout.Slider(normalWeight, 0f, 1f));
+
+                    GUILayout.Label(string.Format("Edge Length Clamp (×): {0:F2}", edgeLenClamp));
+                    edgeLenClamp = Mathf.Max(0f, EditorGUILayout.FloatField(edgeLenClamp));
+
+                    GUILayout.Label(string.Format("Max Position Error (local units, 0=無制限): {0:F6}", maxPosErr));
+                    maxPosErr = Mathf.Max(0f, EditorGUILayout.FloatField(maxPosErr));
+
+                    GUILayout.Label("Subdivide Steps (before simplify): " + subdivideSteps);
+                    subdivideSteps = Mathf.Clamp(EditorGUILayout.IntField(subdivideSteps, GUILayout.Width(60)), 0, 3);
+
+                    GUILayout.Label("Max Iterations per Step: " + maxIters);
+                    maxIters = Mathf.Clamp(EditorGUILayout.IntField(maxIters, GUILayout.Width(80)), 1000, 50000);
+
+                    GUILayout.Space(6);
+                    useGPUOptimization = GUILayout.Toggle(useGPUOptimization, "GPU簡略化を優先する（推奨）");
                 }
             }
-            data.SaveChangesToDisk();
-            Repaint();
-        }
 
-        if (GUILayout.Button("Before/After保存", GUILayout.Width(180)))
-        {
-            WriteBeforeAfterReport(allAssets.Select(x => x.Clone()).ToList(), editableAssets.Select(x => x.Clone()).ToList(), allAssets, new List<string>(), true);
-        }
+            GUILayout.Space(8);
 
-        if (GUILayout.Button("検証Demo作成", GUILayout.Width(180)))
-        {
-            CreateValidationDemoScene();
-        }
+            using (new EditorGUILayout.VerticalScope())
+            {
+                GUI.enabled = isEditing;
+                if (GUILayout.Button("適応する", GUILayout.Width(180), GUILayout.Height(28)))
+                {
+                    ScheduleApplyAssetChanges();
+                }
+                GUI.enabled = true;
 
-        GUILayout.EndVertical();
-        GUILayout.FlexibleSpace();
-        GUILayout.EndHorizontal();
+                if (GUILayout.Button("変更破棄", GUILayout.Width(180)))
+                {
+                    AssetUtilityData data = AssetUtilityData.LoadOrCreateData();
+                    if (data != null)
+                    {
+                        data.ClearTemporaryData();
+                        data.SaveChangesToDisk();
+                    }
+                    editableAssets = allAssets.Select(x => x.Clone()).ToList();
+                    isEditing = false;
+                    Debug.Log("変更を破棄");
+                    Repaint();
+                }
+
+                if (GUILayout.Button("ポリゴン数 50% 削減", GUILayout.Width(180)))
+                {
+                    AssetUtilityData data = AssetUtilityData.LoadOrCreateData();
+                    if (data != null) Undo.RecordObject(data, "一括ポリゴン変更");
+
+                    for (int i = 0; i < editableAssets.Count; i++)
+                    {
+                        AssetInfo asset = editableAssets[i];
+                        if (!asset.canEditMesh || string.IsNullOrEmpty(asset.meshPath) || asset.polygonCount <= 1) continue;
+                        int reduced = Mathf.Max(1, asset.polygonCount / 2);
+                        if (asset.polygonCount != reduced)
+                        {
+                            asset.polygonCount = reduced;
+                            asset.targetPolygonCount = reduced;
+                            if (data != null) RegisterMeshEdit(data, asset, reduced);
+                            isEditing = true;
+                        }
+                    }
+                    if (data != null) data.SaveChangesToDisk();
+                    Repaint();
+                }
+
+                if (GUILayout.Button("Before/After保存", GUILayout.Width(180)))
+                {
+                    WriteBeforeAfterReport(allAssets.Select(x => x.Clone()).ToList(), editableAssets.Select(x => x.Clone()).ToList(), allAssets, new List<string>(), true);
+                }
+
+                if (GUILayout.Button("検証Demo作成", GUILayout.Width(180)))
+                {
+                    CreateValidationDemoScene();
+                }
+            }
+
+            GUILayout.FlexibleSpace();
+        }
     }
 
     private void ScheduleApplyAssetChanges()
@@ -1743,6 +1750,8 @@ public class AssetUtilityWindow : EditorWindow
         // OnGUI中にSceneを開く/保存する処理を直接実行すると、GUILayoutのBegin/End状態が壊れることがあります。
         // そのため、Applyは必ずIMGUIイベント終了後に遅延実行します。
         if (applyScheduled) return;
+
+        SyncEditDataFromEditableAssets();
 
         string preview = BuildApplyPreviewText();
         if (!EditorUtility.DisplayDialog("AssetUtility Apply Preview", preview, "適用する", "キャンセル"))
@@ -1757,7 +1766,7 @@ public class AssetUtilityWindow : EditorWindow
             applyScheduled = false;
             try
             {
-                ApplyAssetChanges();
+                EditorApplication.delayCall += ApplyAssetChanges;
             }
             catch (System.Exception ex)
             {
@@ -1781,6 +1790,7 @@ public class AssetUtilityWindow : EditorWindow
         AssetUtilityData freshData = AssetUtilityData.LoadOrCreateData();
         if (freshData != null)
         {
+            freshData.ClearTemporaryData();
             freshData.SaveChangesToDisk();
         }
 
@@ -2002,7 +2012,7 @@ public class AssetUtilityWindow : EditorWindow
             return safe;
         }
 
-        return modified;
+        return null;
     }
 
     private bool IsReductionResultUsable(Mesh original, Mesh modified, int target, string label, string method)
@@ -2019,6 +2029,9 @@ public class AssetUtilityWindow : EditorWindow
             return false;
 
         if (HasLikelyHoles(original, modified, label, method))
+            return false;
+
+        if (HasInvalidTopology(modified, label, method))
             return false;
 
         return true;
@@ -2038,6 +2051,80 @@ public class AssetUtilityWindow : EditorWindow
             Debug.LogWarning(string.Format(
                 "⚠️ {0}: {1} の結果は境界エッジが増えすぎているため破棄しました。Boundary {2} → {3}。穴あき防止のため元メッシュまたは安全fallbackを使います。",
                 label, method, originalBoundary, modifiedBoundary));
+            return true;
+        }
+
+        return false;
+    }
+
+
+    private bool HasInvalidTopology(Mesh mesh, string label, string method)
+    {
+        if (mesh == null || mesh.triangles == null || mesh.vertices == null)
+            return true;
+
+        Vector3[] verts = mesh.vertices;
+        int[] tris = mesh.triangles;
+        Dictionary<string, int> edgeUse = new Dictionary<string, int>();
+        HashSet<int> usedVerts = new HashSet<int>();
+        int degenerateCount = 0;
+        int nonManifoldCount = 0;
+
+        for (int i = 0; i + 2 < tris.Length; i += 3)
+        {
+            int a = tris[i];
+            int b = tris[i + 1];
+            int c = tris[i + 2];
+
+            if (a < 0 || b < 0 || c < 0 || a >= verts.Length || b >= verts.Length || c >= verts.Length)
+            {
+                Debug.LogWarning(string.Format("⚠️ {0}: {1} の結果に範囲外Indexがあります。", label, method));
+                return true;
+            }
+
+            usedVerts.Add(a);
+            usedVerts.Add(b);
+            usedVerts.Add(c);
+
+            if (a == b || b == c || c == a)
+            {
+                degenerateCount++;
+                continue;
+            }
+
+            float area = Vector3.Cross(verts[b] - verts[a], verts[c] - verts[a]).magnitude * 0.5f;
+            if (area <= Mathf.Max(1e-12f, minTriArea * 0.1f))
+            {
+                degenerateCount++;
+            }
+
+            AddBoundaryEdge(edgeUse, a, b);
+            AddBoundaryEdge(edgeUse, b, c);
+            AddBoundaryEdge(edgeUse, c, a);
+        }
+
+        foreach (KeyValuePair<string, int> kv in edgeUse)
+        {
+            if (kv.Value > 2)
+                nonManifoldCount++;
+        }
+
+        if (degenerateCount > 0)
+        {
+            Debug.LogWarning(string.Format("⚠️ {0}: {1} の結果に退化三角形があります: {2}", label, method, degenerateCount));
+            return true;
+        }
+
+        if (nonManifoldCount > 0)
+        {
+            Debug.LogWarning(string.Format("⚠️ {0}: {1} の結果に非多様体エッジがあります: {2}", label, method, nonManifoldCount));
+            return true;
+        }
+
+        int unused = verts.Length - usedVerts.Count;
+        if (verts.Length > 0 && unused > Mathf.Max(32, verts.Length / 10))
+        {
+            Debug.LogWarning(string.Format("⚠️ {0}: {1} の結果に未使用頂点が多すぎます: {2}", label, method, unused));
             return true;
         }
 
@@ -2413,6 +2500,11 @@ public class AssetUtilityWindow : EditorWindow
             Debug.LogWarning(string.Format("❌ {0}: 穴が発生する可能性が高いため、この削減結果は適用しません。", label));
             return false;
         }
+        if (HasInvalidTopology(modified, label, "final validation"))
+        {
+            Debug.LogWarning(string.Format("❌ {0}: 非多様体/退化面などの不正トポロジーを検出したため、この削減結果は適用しません。", label));
+            return false;
+        }
         if (target < originalTris && modifiedTris > Mathf.CeilToInt(target * 1.25f))
         {
             Debug.LogWarning(string.Format("⚠️ {0}: 目標値から大きく外れています。target={1}, result={2}。品質優先で適用は継続します。", label, target, modifiedTris));
@@ -2494,6 +2586,49 @@ public class AssetUtilityWindow : EditorWindow
         return replaced;
     }
 
+
+
+    private void SyncEditDataFromEditableAssets()
+    {
+        AssetUtilityData data = AssetUtilityData.LoadOrCreateData();
+        if (data == null) return;
+
+        data.meshEditDataList.Clear();
+        data.textureEditDataList.Clear();
+
+        for (int i = 0; i < editableAssets.Count; i++)
+        {
+            AssetInfo asset = editableAssets[i];
+            if (asset == null) continue;
+
+            int originalPolygon = GetOriginalPolygon(asset);
+            if (asset.canEditMesh && !string.IsNullOrEmpty(asset.meshPath) && originalPolygon > 0 && asset.polygonCount > 0 && asset.polygonCount != originalPolygon)
+            {
+                RegisterMeshEdit(data, asset, asset.polygonCount);
+            }
+
+            if (!string.IsNullOrEmpty(asset.texturePath))
+            {
+                int originalMax = GetTextureImporterMaxSize(asset.texturePath);
+                if (originalMax <= 0)
+                {
+                    Vector2Int originalSize = GetOriginalResolution(asset);
+                    originalMax = ToImporterMaxSize(Mathf.Max(originalSize.x, originalSize.y));
+                }
+
+                int targetMax = asset.resolution.x > 0 || asset.resolution.y > 0
+                    ? ToImporterMaxSize(Mathf.Max(asset.resolution.x, asset.resolution.y))
+                    : originalMax;
+
+                if (targetMax > 0 && targetMax != originalMax)
+                {
+                    RegisterTextureEdit(data, asset, new Vector2Int(targetMax, targetMax));
+                }
+            }
+        }
+
+        EditorUtility.SetDirty(data);
+    }
 
     private string BuildApplyPreviewText()
     {
@@ -2737,7 +2872,7 @@ public class AssetUtilityWindow : EditorWindow
         {
             bool save = EditorUtility.DisplayDialog("保存されていない変更があります",
                 "変更を保存してから閉じますか？", "保存", "破棄");
-            if (save) ScheduleApplyAssetChanges();
+            if (save) EditorApplication.delayCall += ApplyAssetChanges;
             else Debug.Log("⚠️ 変更は保存されませんでした");
         }
     }
@@ -2871,7 +3006,7 @@ public class AssetUtilityWindow : EditorWindow
         Mesh mesh = mf != null ? mf.sharedMesh : (smr != null ? smr.sharedMesh : null);
 
         Renderer renderer = (Renderer)go.GetComponent<SkinnedMeshRenderer>() ?? go.GetComponent<MeshRenderer>();
-        Material mat = renderer != null ? renderer.sharedMaterial : null;
+        Material mat = GetPrimaryMaterial(renderer);
         Texture tex = mat != null ? mat.mainTexture : null;
 
         long mem = 0;
@@ -2893,6 +3028,7 @@ public class AssetUtilityWindow : EditorWindow
         info.objectType = objectType;
         info.memoryMB = memMB;
         info.materialType = mat != null && mat.shader != null ? mat.shader.name : "None";
+        info.materialName = mat != null ? mat.name : "None";
         info.polygonCount = polyCount;
         info.targetPolygonCount = polyCount;
         info.meshPath = meshPath;
@@ -2999,11 +3135,33 @@ public class AssetUtilityWindow : EditorWindow
         return "Other";
     }
 
+
+    private Material GetPrimaryMaterial(Renderer renderer)
+    {
+        if (renderer == null) return null;
+        Material[] materials = renderer.sharedMaterials;
+        if (materials == null || materials.Length == 0) return renderer.sharedMaterial;
+
+        for (int i = 0; i < materials.Length; i++)
+        {
+            if (materials[i] != null && materials[i].mainTexture != null)
+                return materials[i];
+        }
+
+        for (int i = 0; i < materials.Length; i++)
+        {
+            if (materials[i] != null)
+                return materials[i];
+        }
+
+        return null;
+    }
+
     private string GetTextureType(GameObject go)
     {
         Renderer renderer = (Renderer)go.GetComponent<SkinnedMeshRenderer>() ?? go.GetComponent<MeshRenderer>();
         if (renderer == null) return "None";
-        Material mat = renderer.sharedMaterial;
+        Material mat = GetPrimaryMaterial(renderer);
         if (mat == null) return "None";
         Texture tex = mat.mainTexture;
         if (tex == null) return "None";
@@ -3017,8 +3175,9 @@ public class AssetUtilityWindow : EditorWindow
     private string GetMaterialType(GameObject go)
     {
         Renderer renderer = (Renderer)go.GetComponent<SkinnedMeshRenderer>() ?? go.GetComponent<MeshRenderer>();
-        if (renderer == null || renderer.sharedMaterial == null) return "None";
-        string shaderName = renderer.sharedMaterial.shader != null ? renderer.sharedMaterial.shader.name : null;
+        Material mat = GetPrimaryMaterial(renderer);
+        if (renderer == null || mat == null) return "None";
+        string shaderName = mat.shader != null ? mat.shader.name : null;
         if (shaderName == null) return "None";
         if (shaderName.Contains("Standard")) return "Standard";
         if (shaderName.Contains("Universal")) return "URP";
@@ -3031,6 +3190,26 @@ public class AssetUtilityWindow : EditorWindow
     {
         try { return mesh != null && mesh.triangles != null ? mesh.triangles.Length / 3 : 0; }
         catch { return 0; }
+    }
+
+
+    private int GetTextureImporterMaxSize(string texturePath)
+    {
+        if (string.IsNullOrEmpty(texturePath)) return 0;
+        TextureImporter importer = AssetImporter.GetAtPath(texturePath) as TextureImporter;
+        return importer != null ? importer.maxTextureSize : 0;
+    }
+
+    private string TextureMaxSizeText(AssetInfo asset)
+    {
+        if (asset == null || string.IsNullOrEmpty(asset.texturePath)) return "—";
+        int max = GetTextureImporterMaxSize(asset.texturePath);
+        if (max <= 0)
+        {
+            Vector2Int size = GetOriginalResolution(asset);
+            max = ToImporterMaxSize(Mathf.Max(size.x, size.y));
+        }
+        return max > 0 ? max.ToString() : "—";
     }
 
     private string ResolutionText(Vector2Int size)
@@ -3068,10 +3247,22 @@ public class AssetUtilityWindow : EditorWindow
             {
                 GameObject go = children[i].gameObject;
                 if (!string.IsNullOrEmpty(objectPath) && GetHierarchyPath(children[i]) == objectPath) return go;
-                if (instanceID != 0 && go.GetInstanceID() == instanceID) return go;
-                if (go.name == objectName) return go;
             }
         }
+
+        if (string.IsNullOrEmpty(objectPath) && instanceID != 0)
+        {
+            foreach (GameObject root in scene.GetRootGameObjects())
+            {
+                Transform[] children = root.GetComponentsInChildren<Transform>(true);
+                for (int i = 0; i < children.Length; i++)
+                {
+                    GameObject go = children[i].gameObject;
+                    if (go.GetInstanceID() == instanceID) return go;
+                }
+            }
+        }
+
         return null;
     }
 
