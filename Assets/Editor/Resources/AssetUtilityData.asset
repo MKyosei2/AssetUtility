@@ -13,5 +13,27 @@ MonoBehaviour:
   m_Name: AssetUtilityData
   m_EditorClassIdentifier: Assembly-CSharp:EasyTool:AssetUtilityData
   materialEdits: []
-  textureEditDataList: []
-  meshEditDataList: []
+  textureEditDataList:
+  - texturePath: 
+    originalSize: {x: 0, y: 0}
+    editedSize: {x: 1, y: 1}
+    originalMaxSize: 0
+    targetMaxSize: 1
+    processTimeMS: 0
+  meshEditDataList:
+  - assetPath: 
+    simplifiedMeshPath: 
+    targetObjectName: Main Camera
+    targetInstanceID: 61568
+    targetTriangleCount: 1
+    processTimeMS: 0
+    scenePath: Assets/Samples/AssetUtilityDemo/Scenes/AssetUtilityDemoScene.unity
+    targetObjectPath: Main Camera
+  - assetPath: 
+    simplifiedMeshPath: 
+    targetObjectName: Directional Light
+    targetInstanceID: 61592
+    targetTriangleCount: 1
+    processTimeMS: 0
+    scenePath: Assets/Samples/AssetUtilityDemo/Scenes/AssetUtilityDemoScene.unity
+    targetObjectPath: Directional Light
