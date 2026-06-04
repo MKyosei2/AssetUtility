@@ -1,0 +1,5 @@
+object,scene,polyBefore,polyPlanned,polyAfter,textureBefore,texturePlanned,textureAfter,warning
+"Main Camera","AssetUtilityDemoScene",0,1,0,"—","—","—","静的Mesh対象外; MeshPathなし; Materialなし; Textureなし"
+"Directional Light","AssetUtilityDemoScene",0,1,0,"—","—","—","静的Mesh対象外; MeshPathなし; Materialなし; Textureなし"
+"AU_HighPoly_StaticMesh","AssetUtilityDemoScene",12800,6400,12800,"—","—","—","Materialなし; Textureなし"
+"AU_MeshCollider_SharedMesh","AssetUtilityDemoScene",12800,6400,12800,"—","—","—","Materialなし; Textureなし"
