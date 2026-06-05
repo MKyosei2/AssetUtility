@@ -71,6 +71,10 @@ def require_paths(ctx: ValidationContext) -> tuple[list[str], list[str]]:
         "README.md",
         "Assets",
         "Assets/Script/AssetUtility.cs",
+        "Assets/Script/AssetUtilityOptimizationPlan.cs",
+        "Assets/Script/AssetUtilityPriorityQem.cs",
+        "Assets/Script/AssetUtility.Editor.asmdef",
+        "Assets/Editor/Tests/AssetUtilityOptimizationPlanTests.cs",
         "Packages",
         "ProjectSettings",
     ]
@@ -103,10 +107,21 @@ def check_readme(ctx: ValidationContext) -> tuple[list[str], list[str]]:
 def check_csharp_static_health(ctx: ValidationContext) -> tuple[list[str], list[str]]:
     warnings: List[str] = []
     errors: List[str] = []
-    source = ctx.root / "Assets/Script/AssetUtility.cs"
-    if not source.exists():
-        return warnings, ["AssetUtility.cs is missing."]
-    text = source.read_text(encoding="utf-8", errors="replace")
+    files = [
+        ctx.root / "Assets/Script/AssetUtility.cs",
+        ctx.root / "Assets/Script/AssetUtilityOptimizationPlan.cs",
+        ctx.root / "Assets/Script/AssetUtilityPriorityQem.cs",
+    ]
+    combined = ""
+    for source in files:
+        if not source.exists():
+            errors.append(f"Missing C# source: {source.relative_to(ctx.root)}")
+            continue
+        text = source.read_text(encoding="utf-8", errors="replace")
+        combined += "\n" + text
+        if text.count("{") != text.count("}"):
+            errors.append(f"Brace count mismatch in {source.relative_to(ctx.root)}; static compile readiness failed.")
+
     required_tokens = [
         "EditorWindow",
         "AssetDatabase",
@@ -114,12 +129,16 @@ def check_csharp_static_health(ctx: ValidationContext) -> tuple[list[str], list[
         "SkinnedMeshRenderer",
         "MeshCollider",
         "SimplifyQEM",
+        "AssetOptimizationPlan",
+        "MeshQualityReport",
+        "AssetUtilityPriorityQem",
+        "MinHeap",
+        "TriangleValid",
+        "RollbackCommands",
     ]
     for token in required_tokens:
-        if token not in text:
+        if token not in combined:
             warnings.append(f"Expected Unity tooling token not found: {token}")
-    if text.count("{") != text.count("}"):
-        errors.append("Brace count mismatch in AssetUtility.cs; static compile readiness failed.")
     return warnings, errors
 
 
@@ -136,9 +155,10 @@ def generate_sample_plan(ctx: ValidationContext) -> tuple[list[str], list[str]]:
                 "source": "Samples/HighPolyCharacter.fbx",
                 "originalTriangles": 100000,
                 "targetTriangles": 25000,
-                "method": "Shape-Preserving QEM",
+                "method": "PriorityQueue + adjacency-cache QEM",
                 "qualityGate": [
                     "degenerate triangle count == 0",
+                    "invalid index count == 0",
                     "non-manifold edge count does not increase unexpectedly",
                     "boundary edge increase stays within tolerance",
                     "normal deviation stays within tolerance",
