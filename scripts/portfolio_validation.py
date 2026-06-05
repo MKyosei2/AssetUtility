@@ -73,6 +73,7 @@ def require_paths(ctx: ValidationContext) -> tuple[list[str], list[str]]:
         "Assets/Script/AssetUtility.cs",
         "Assets/Script/AssetUtilityOptimizationPlan.cs",
         "Assets/Script/AssetUtilityPriorityQem.cs",
+        "Assets/Script/AssetUtilityReportWriter.cs",
         "Assets/Script/AssetUtility.Editor.asmdef",
         "Assets/Editor/Tests/AssetUtilityOptimizationPlanTests.cs",
         "Packages",
@@ -111,6 +112,7 @@ def check_csharp_static_health(ctx: ValidationContext) -> tuple[list[str], list[
         ctx.root / "Assets/Script/AssetUtility.cs",
         ctx.root / "Assets/Script/AssetUtilityOptimizationPlan.cs",
         ctx.root / "Assets/Script/AssetUtilityPriorityQem.cs",
+        ctx.root / "Assets/Script/AssetUtilityReportWriter.cs",
     ]
     combined = ""
     for source in files:
@@ -135,6 +137,8 @@ def check_csharp_static_health(ctx: ValidationContext) -> tuple[list[str], list[
         "MinHeap",
         "TriangleValid",
         "RollbackCommands",
+        "AssetUtilityReportWriter",
+        "assetutility_optimization_report.md",
     ]
     for token in required_tokens:
         if token not in combined:
@@ -175,6 +179,83 @@ def generate_sample_plan(ctx: ValidationContext) -> tuple[list[str], list[str]]:
     sample_path = ctx.report_dir / "assetutility_dry_run_sample_plan.json"
     sample_path.write_text(json.dumps(sample, indent=2, ensure_ascii=False), encoding="utf-8")
     ctx.generated_samples.append(str(sample_path.relative_to(ctx.root)).replace("\\", "/"))
+    return warnings, errors
+
+
+def generate_optimization_report(ctx: ValidationContext) -> tuple[list[str], list[str]]:
+    warnings: List[str] = []
+    errors: List[str] = []
+    ctx.report_dir.mkdir(parents=True, exist_ok=True)
+    data = {
+        "success": True,
+        "dryRun": True,
+        "plan": {
+            "meshCommands": [
+                {
+                    "objectPath": "Root/Grid",
+                    "sourceMeshPath": "Samples/Grid.asset",
+                    "originalTriangles": 32,
+                    "targetTriangles": 8,
+                    "method": "PriorityQueue + adjacency-cache QEM",
+                }
+            ],
+            "textureCommands": [
+                {
+                    "texturePath": "Samples/OversizedTexture.png",
+                    "originalMaxSize": 4096,
+                    "targetMaxSize": 2048,
+                    "method": "TextureImporter.maxTextureSize",
+                }
+            ],
+        },
+        "meshQuality": {
+            "originalTriangles": 32,
+            "finalTriangles": 8,
+            "degenerateTriangles": 0,
+            "invalidIndices": 0,
+            "boundaryEdges": 16,
+            "normalsValid": True,
+            "passed": True,
+        },
+        "rollbackCommands": [
+            "Restore mesh reference for Root/Grid to Samples/Grid.asset",
+            "Restore TextureImporter max size for Samples/OversizedTexture.png to 4096",
+        ],
+    }
+    json_path = ctx.report_dir / "assetutility_optimization_report.json"
+    json_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    md_lines = [
+        "# AssetUtility Optimization Report",
+        "",
+        "Dry run: `true`",
+        "Success: `true`",
+        "",
+        "## Plan",
+        "",
+        "| Kind | Target | Before | After | Method |",
+        "|---|---|---:|---:|---|",
+        "| Mesh | Root/Grid | 32 | 8 | PriorityQueue + adjacency-cache QEM |",
+        "| Texture | Samples/OversizedTexture.png | 4096 | 2048 | TextureImporter.maxTextureSize |",
+        "",
+        "## Mesh quality gate",
+        "",
+        "| Metric | Value |",
+        "|---|---:|",
+        "| Original triangles | 32 |",
+        "| Final triangles | 8 |",
+        "| Degenerate triangles | 0 |",
+        "| Invalid indices | 0 |",
+        "| Passed | true |",
+        "",
+        "## Rollback commands",
+        "",
+        "- Restore mesh reference for Root/Grid to Samples/Grid.asset",
+        "- Restore TextureImporter max size for Samples/OversizedTexture.png to 4096",
+    ]
+    md_path = ctx.report_dir / "assetutility_optimization_report.md"
+    md_path.write_text("\n".join(md_lines) + "\n", encoding="utf-8")
+    ctx.generated_samples.append(str(json_path.relative_to(ctx.root)).replace("\\", "/"))
+    ctx.generated_samples.append(str(md_path.relative_to(ctx.root)).replace("\\", "/"))
     return warnings, errors
 
 
@@ -246,6 +327,7 @@ def main() -> int:
     ctx.run_stage("readme_limitations", lambda: check_readme(ctx))
     ctx.run_stage("csharp_static_health", lambda: check_csharp_static_health(ctx))
     ctx.run_stage("dry_run_sample_generation", lambda: generate_sample_plan(ctx))
+    ctx.run_stage("optimization_report_generation", lambda: generate_optimization_report(ctx))
     ctx.run_stage("dry_run_rollback_plan", lambda: generate_dry_run_plan(ctx))
 
     report = write_reports(ctx)
