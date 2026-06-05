@@ -80,6 +80,7 @@ namespace EasyTool
     public class MeshOptimizationPlan
     {
         public string sourceMeshPath;
+        public string generatedMeshPath;
         public string targetObjectPath;
         public string targetScenePath;
         public int originalTriangleCount;
@@ -88,6 +89,11 @@ namespace EasyTool
         public bool updateMeshFilter = true;
         public bool updateSkinnedMeshRenderer = true;
         public bool updateMeshCollider = true;
+
+        public string MeshPathToApply
+        {
+            get { return string.IsNullOrEmpty(generatedMeshPath) ? sourceMeshPath : generatedMeshPath; }
+        }
 
         public bool IsValid(out string reason)
         {
