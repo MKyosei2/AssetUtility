@@ -60,6 +60,36 @@ public sealed class AssetUtilityOptimizationPlanTests
         Assert.AreEqual(0, report.InvalidIndices);
     }
 
+    [Test]
+    public void ReportWriterSerializesRollbackAndQualityGate()
+    {
+        var plan = new AssetOptimizationPlan();
+        plan.MeshCommands.Add(new MeshOptimizationCommand
+        {
+            ObjectPath = "Root/Grid",
+            SourceMeshPath = "Assets/Grid.asset",
+            OriginalTriangles = 32,
+            TargetTriangles = 8
+        });
+        AssetOptimizationResult result = AssetUtilityDryRunPlanner.ValidateDryRun(plan);
+        var quality = new MeshQualityReport
+        {
+            OriginalTriangles = 32,
+            FinalTriangles = 8,
+            DegenerateTriangles = 0,
+            InvalidIndices = 0,
+            BoundaryEdges = 16,
+            NormalsValid = true,
+            Passed = true
+        };
+
+        string markdown = AssetUtilityReportWriter.ToMarkdown(plan, result, quality);
+        string json = AssetUtilityReportWriter.ToJson(plan, result, quality);
+        StringAssert.Contains("AssetUtility Optimization Report", markdown);
+        StringAssert.Contains("Rollback commands", markdown);
+        StringAssert.Contains("\"finalTriangles\": 8", json);
+    }
+
     private static Mesh BuildGridMesh(int width, int height)
     {
         var mesh = new Mesh();
