@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using UnityEngine;
@@ -32,14 +33,14 @@ public static class AssetUtilityReportWriter
         sb.AppendLine();
         sb.AppendLine("## Plan");
         sb.AppendLine();
-        sb.AppendLine("| Kind | Target | Before | After | Method | ");
+        sb.AppendLine("| Kind | Target | Before | After | Method |");
         sb.AppendLine("|---|---|---:|---:|---|");
         if (plan != null)
         {
             foreach (MeshOptimizationCommand cmd in plan.MeshCommands)
                 sb.AppendLine("| Mesh | " + EscapeTable(cmd.ObjectPath) + " | " + cmd.OriginalTriangles + " | " + cmd.TargetTriangles + " | " + EscapeTable(cmd.Method) + " |");
             foreach (TextureOptimizationCommand cmd in plan.TextureCommands)
-                sb.AppendLine("| Texture | " + EscapeTable(cmd.TexturePath) + " | " + cmd.OriginalMaxSize + " | " + cmd.TargetMaxSize + " | TextureImporter | ");
+                sb.AppendLine("| Texture | " + EscapeTable(cmd.TexturePath) + " | " + cmd.OriginalMaxSize + " | " + cmd.TargetMaxSize + " | TextureImporter |");
         }
         sb.AppendLine();
         sb.AppendLine("## Result");
@@ -118,8 +119,8 @@ public static class AssetUtilityReportWriter
                ", \"degenerateTriangles\": " + report.DegenerateTriangles +
                ", \"invalidIndices\": " + report.InvalidIndices +
                ", \"boundaryEdges\": " + report.BoundaryEdges +
-               ", \"minTriangleArea\": " + report.MinTriangleArea.ToString("0.########") +
-               ", \"maxTriangleArea\": " + report.MaxTriangleArea.ToString("0.########") +
+               ", \"minTriangleArea\": " + report.MinTriangleArea.ToString("0.########", CultureInfo.InvariantCulture) +
+               ", \"maxTriangleArea\": " + report.MaxTriangleArea.ToString("0.########", CultureInfo.InvariantCulture) +
                ", \"normalsValid\": " + (report.NormalsValid ? "true" : "false") +
                ", \"passed\": " + (report.Passed ? "true" : "false") + " }";
     }
