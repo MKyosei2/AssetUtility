@@ -39,6 +39,18 @@ namespace EasyTool
                 if (GUILayout.Button("Generate Mesh Plans"))
                 {
                     plans = MeshOptimizationService.BuildPlansFromAssets(scannedAssets, true);
+                    // Generate optimized mesh paths immediately
+                    foreach (var p in plans)
+                    {
+                        if (MeshOptimizationService.TryGenerateOptimizedMesh(p, out string path, out string err))
+                        {
+                            p.generatedMeshPath = path;
+                        }
+                        else
+                        {
+                            Debug.LogWarning("Mesh plan failed: " + err);
+                        }
+                    }
                 }
 
                 if (plans != null && plans.Count > 0)
