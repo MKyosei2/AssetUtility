@@ -1,0 +1,93 @@
+*** Begin Patch
+*** Update File: Assets/Script/AssetUtility.cs
+@@
+-        HashSet<Edge> edges = new HashSet<Edge>(edgeCount.Keys);
++        MeshAdjacencyCache adjacency = MeshAdjacencyCache.Build(tris, verts.Count);
++        MinEdgeQueue edgeQueue = new MinEdgeQueue();
++        for (int i = 0; i < adjacency.Edges.Count; i++)
++            EnqueueQemCandidate(adjacency.Edges[i], edgeQueue, Q, uvs, normals, isBorder, isUVSeam, isHard, opt, tris, verts, adjacency.VertexTriangles);
+@@
+-            float bestC = float.PositiveInfinity;
+-            Edge bestE = new Edge(-1, -1);
+-            Vector3 bestX = Vector3.zero;
+-
+-            foreach (Edge e in edges)
+-            {
+-                int a = e.a; int b0 = e.b;
+-                Edge key = new Edge(a, b0);
+-                if (opt.preserveBorders && isBorder.Contains(key)) continue;
+-                if (opt.preserveUVSeams && isUVSeam.Contains(key)) continue;
+-                if (opt.preserveHardNormals && isHard.Contains(key)) continue;
+-
+-                Vector3 x;
+-                float c = EdgeCost(e, Q, uvs, normals, isBorder, isUVSeam, isHard, opt, tris, verts, out x);
+-                if (c < bestC)
+-                {
+-                    if (WouldFlipOrDegenerate(a, b0, x, tris, verts, opt)) continue;
+-                    bestC = c; bestE = e; bestX = x;
+-                }
+-            }
++            EdgeCandidate candidate;
++            if (!TryPopValidCandidate(edgeQueue, adjacency, Q, uvs, normals, isBorder, isUVSeam, isHard, opt, tris, verts, out candidate)) break;
++
++            float bestC = candidate.cost;
++            Edge bestE = candidate.edge;
++            Vector3 bestX = candidate.position;
+@@
+-                    edges.Remove(bestE);
++                    adjacency.DisableEdge(bestE);
+                     continue;
+@@
+-            // トライアングルの B を A に差し替え
+-            for (int i = 0; i < tris.Count; i++) if (tris[i] == B2) tris[i] = A;
+-
+-            // 退化面削除
+-            for (int i = tris.Count - 3; i >= 0; i -= 3)
+-            {
+-                int i0 = tris[i], i1 = tris[i + 1], i2 = tris[i + 2];
+-                if (i0 == i1 || i1 == i2 || i2 == i0) tris.RemoveRange(i, 3);
+-            }
++            // 局所更新: B を参照する三角形だけを A に差し替え、退化面は valid flag で無効化する。
++            adjacency.CollapseVertex(B2, A, tris);
+@@
+-                edgeCount.Clear();
+-                for (int t = 0; t < TriCount(tris); t++)
+-                {
+-                    int a = tris[t * 3], b0 = tris[t * 3 + 1], c = tris[t * 3 + 2];
+-                    Edge e1 = new Edge(a, b0);
+-                    Edge e2 = new Edge(b0, c);
+-                    Edge e3 = new Edge(c, a);
+-                    int v;
+-                    if (!edgeCount.TryGetValue(e1, out v)) edgeCount[e1] = 1; else edgeCount[e1] = v + 1;
+-                    if (!edgeCount.TryGetValue(e2, out v)) edgeCount[e2] = 1; else edgeCount[e2] = v + 1;
+-                    if (!edgeCount.TryGetValue(e3, out v)) edgeCount[e3] = 1; else edgeCount[e3] = v + 1;
+-                }
+-
+-                isBorder.Clear();
+-                foreach (KeyValuePair<Edge, int> kv in edgeCount)
+-                    if (kv.Value == 1) isBorder.Add(kv.Key);
+-
+-                // 非多様体（>2）を候補から除外
+-                List<Edge> nonManifold = new List<Edge>();
+-                foreach (KeyValuePair<Edge, int> kv in edgeCount)
+-                    if (kv.Value > 2) nonManifold.Add(kv.Key);
+-                for (int i = 0; i < nonManifold.Count; i++) edges.Remove(nonManifold[i]);
++                adjacency.UpdateEdgeClassifications(isBorder, edgeCount);
+             }
+-
+-            edges.Clear();
+-            for (int t = 0; t < TriCount(tris); t++)
+-            {
+-                int a = tris[t * 3], b0 = tris[t * 3 + 1], c = tris[t * 3 + 2];
+-                edges.Add(new Edge(a, b0));
+-                edges.Add(new Edge(b0, c));
+-                edges.Add(new Edge(c, a));
+-            }
++
++            adjacency.EnqueueAffectedEdges(A, edgeQueue, Q, uvs, normals, isBorder, isUVSeam, isHard, opt, tris, verts);
+         }
++
++        tris = adjacency.CompactTriangles(tris);
+*** End Patch
+
+NOTE: This patch is intentionally stored separately because AssetUtility.cs is a large single file and GitHub Contents API requires full-file replacement. Apply the patch locally, then run Unity editor compilation and QEM smoke tests.
