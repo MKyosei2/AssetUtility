@@ -1,0 +1,29 @@
+name: Portfolio Validation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  portfolio-validation:
+    name: Static validation, dry-run, reports, and benchmark artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run portfolio validation dry-run
+        run: python scripts/portfolio_validation.py --dry-run --report-dir Docs/Reports
+
+      - name: Upload validation reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: assetutility-portfolio-validation-reports
+          path: Docs/Reports
