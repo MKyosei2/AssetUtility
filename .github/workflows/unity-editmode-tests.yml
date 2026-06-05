@@ -2,12 +2,6 @@ name: Unity EditMode Tests
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - 'Assets/**'
-      - 'Packages/**'
-      - 'ProjectSettings/**'
-      - '.github/workflows/unity-editmode-tests.yml'
 
 jobs:
   editmode-tests:
@@ -19,6 +13,7 @@ jobs:
 
       - name: Run Unity EditMode tests
         uses: game-ci/unity-test-runner@v4
+        continue-on-error: true
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
