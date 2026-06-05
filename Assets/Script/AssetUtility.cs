@@ -1739,6 +1739,11 @@ public class AssetUtilityWindow : EditorWindow
                 {
                     CreateValidationDemoScene();
                 }
+
+                if (GUILayout.Button("証拠Pack生成", GUILayout.Width(180)))
+                {
+                    AssetUtilityEvidenceRunner.CreateEvidencePack();
+                }
             }
 
             GUILayout.FlexibleSpace();
