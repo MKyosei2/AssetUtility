@@ -1,6 +1,8 @@
 {
   "name": "AssetUtility.Editor.Tests",
-  "references": [],
+  "references": [
+    "AssetUtility.Editor"
+  ],
   "includePlatforms": [
     "Editor"
   ],
