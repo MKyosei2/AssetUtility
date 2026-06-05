@@ -1,0 +1,36 @@
+name: Unity EditMode Tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'Assets/**'
+      - 'Packages/**'
+      - 'ProjectSettings/**'
+      - '.github/workflows/unity-editmode-tests.yml'
+
+jobs:
+  editmode-tests:
+    name: Unity EditMode tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Unity EditMode tests
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          testMode: EditMode
+          artifactsPath: unity-test-artifacts
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Unity test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: assetutility-editmode-test-artifacts
+          path: unity-test-artifacts
