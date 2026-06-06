@@ -1,0 +1,8 @@
+item,before,target,after,result
+triangles,12800,6400,6400,PASS
+vertices,6561,,3321,
+boundaryEdges,320,,240,
+nonManifoldEdges,0,,0,
+degenerateTriangles,0,,0,
+invalidIndices,0,,0,
+textureMaxSize,1024,512,512,

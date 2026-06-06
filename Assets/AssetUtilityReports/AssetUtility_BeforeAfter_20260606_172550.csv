@@ -1,0 +1,3 @@
+object,scene,polyBefore,polyPlanned,polyAfter,textureBefore,texturePlanned,textureAfter,warning
+"Main Camera","AssetUtilityDemoScene",0,1,1,"—","—","—","静的Mesh対象外; MeshPathなし; Materialなし; Textureなし"
+"Directional Light","AssetUtilityDemoScene",0,1,1,"—","—","—","静的Mesh対象外; MeshPathなし; Materialなし; Textureなし"
