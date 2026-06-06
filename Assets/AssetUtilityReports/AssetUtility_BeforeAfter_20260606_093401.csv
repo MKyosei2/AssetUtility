@@ -1,0 +1,7 @@
+object,scene,polyBefore,polyPlanned,polyAfter,textureBefore,texturePlanned,textureAfter,warning
+"Main Camera","AssetUtilityEvidence_20260605_090515",0,1,0,"—","—","—","静的Mesh対象外; MeshPathなし; Materialなし; Textureなし"
+"Directional Light","AssetUtilityEvidence_20260605_090515",0,1,0,"—","—","—","静的Mesh対象外; MeshPathなし; Materialなし; Textureなし"
+"AU_Before_12800tris","AssetUtilityEvidence_20260605_090515",12800,6400,6400,"—","—","—","Materialなし; Textureなし"
+"AU_After_6400tris_NoHoles","AssetUtilityEvidence_20260605_090515",6400,3200,3200,"—","—","—","Materialなし; Textureなし"
+"Before: 12,800 tris / Texture 1024","AssetUtilityEvidence_20260605_090515",0,1,0,"—","—","—","静的Mesh対象外; MeshPathなし; Materialなし; Textureなし"
+"After: 6,400 tris / Texture 512 / No holes","AssetUtilityEvidence_20260605_090515",0,1,0,"—","—","—","静的Mesh対象外; MeshPathなし; Materialなし; Textureなし"
